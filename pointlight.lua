@@ -87,9 +87,9 @@ vec4 lovrmain() {
   vec3 lightVec = PositionWorld - Push.LightWorld;
   float dist = distance(Push.LightWorld, PositionWorld);
 
-  //const float bias = 0.002;
+  const float bias = 0.002;
      //float bias = max(0.0002 * (1.0 - dot(Normal, normalize(Push.LightWorld - PositionWorld))), 0.0005);
-  float bias = max(0.005 * (1.0 - dot(normalize(Normal), normalize(lightVec))), 0.005);
+  //float bias = max(0.005 * (1.0 - dot(normalize(Normal), normalize(lightVec))), 0.005);
 
   float shadowing = 0.;
   float radius = 0.001 * distance(PositionWorld, CameraPositionWorld);
