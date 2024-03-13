@@ -1,5 +1,5 @@
 --[[ Point light shaddow mapping
-
+point light by JMiskovic - https://gist.github.com/jmiskovic
  --new how to , unsure yet 
  ...  
 
@@ -92,7 +92,7 @@ vec4 lovrmain() {
   float bias = max(0.005 * (1.0 - dot(normalize(Normal), normalize(lightVec))), 0.005);
 
   float shadowing = 0.;
-  float radius = 0.01 * distance(PositionWorld, CameraPositionWorld);
+  float radius = 0.001 * distance(PositionWorld, CameraPositionWorld);
   for (int i = 0; i < pcf_samples; ++i) {
     float closest_dist = getPixel(DepthBuffer, vec3(-lightVec.x, lightVec.y, lightVec.z) + pcf_offset[i] * radius).r * Push.LightFarPlane;
     shadowing += (dist + bias > closest_dist) ? 0. : Push.ShadowStrength / pcf_samples;
@@ -127,7 +127,7 @@ local transforms = {
 function m.load(resolution, position)
   m.position:set(position)
   m.resolution = resolution or 1024
-  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution, 6, {type='cube', format = 'd32f', mipmaps = false, usage = {'render', 'sample'}})
+  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution, 6, {type='cube', format = 'd32f',  usage = {'render', 'sample'}})
   m.pass =  lovr.graphics.newPass({ depth = m.texture })
 end
 
