@@ -1,9 +1,9 @@
 --[[ Point light shaddow mapping
 point light by JMiskovic - https://gist.github.com/jmiskovic
- --new how to , unsure yet 
- ...  
+ --new how to , unsure yet
+ ...
 
- 
+
 -- change light parameters
   point_light.position:set(1, 2, -1)
   point_light.light_color:set(1, 0, 0) -- rgb, can go over 1 for stronger lights
@@ -79,20 +79,22 @@ vec3 evaluateLightProbe(vec3 probe[9], vec3 dir) {
 }
 
 vec4 lovrmain() {
+
   const int pcf_samples = 20; // only up to 20
-  const float c = 1.0;
 
-  vec4 color = DefaultColor;
+  vec4 color = Color;
 
-  vec3 lightVec = PositionWorld - Push.LightWorld;
+  vec3 lightDir = normalize(Push.LightWorld.xyz);
+
+  //still referencing the old distance
   float dist = distance(Push.LightWorld, PositionWorld);
+  vec3 lightVec = PositionWorld - Push.LightWorld;
 
-  const float bias = 0.002;
-     //float bias = max(0.0002 * (1.0 - dot(Normal, normalize(Push.LightWorld - PositionWorld))), 0.0005);
-  //float bias = max(0.005 * (1.0 - dot(normalize(Normal), normalize(lightVec))), 0.005);
 
+  float bias =0.002;
+   bias = max(0.005 * (1.0 - dot(Normal, lightDir)), 0.0005);
   float shadowing = 0.;
-  float radius = 0.001 * distance(PositionWorld, CameraPositionWorld);
+  float radius = 0.05 ;
   for (int i = 0; i < pcf_samples; ++i) {
     float closest_dist = getPixel(DepthBuffer, vec3(-lightVec.x, lightVec.y, lightVec.z) + pcf_offset[i] * radius).r * Push.LightFarPlane;
     shadowing += (dist + bias > closest_dist) ? 0. : Push.ShadowStrength / pcf_samples;
@@ -101,13 +103,14 @@ vec4 lovrmain() {
   shadowing = clamp(shadowing, 0.0, 1.0);
   color.rgb *= (Push.Ambient + shadowing * Push.LightColor);
   color.rgb *= Push.Shading * (evaluateLightProbe(lightProbe, normalize(Normal)) - 1.) + 1.;
+
   return color;
 }
 ]])
 
 m.position = lovr.math.newVec3(0, 1, 0)
 m.light_color = lovr.math.newVec3(1, 1, 1)
-m.draw_distance = 1000
+m.draw_distance = 300
 m.ambient = 0.05
 m.shading = 0.5
 m.shadow_strength = 0.8
@@ -115,22 +118,24 @@ m.diffuse_strength = 0.4
 m.falloff = 0.05
 
 local perspective = lovr.math.newMat4():perspective(math.pi / 2, 1, 0.01, m.draw_distance)
+-- local size = 1
+--  local perspective = lovr.math.newMat4():orthographic(-size, size, -size, size, 100, -100) -- why is near and far inverted? ¯\_(ツ)_/¯
 local transforms = {
-  lovr.math.newMat4():lookAt(vec3(), vec3( 1, 0, 0), vec3(0, 1, 0)),
+  lovr.math.newMat4():lookAt(vec3(), vec3(1, 0, 0), vec3(0, 1, 0)),
   lovr.math.newMat4():lookAt(vec3(), vec3(-1, 0, 0), vec3(0, 1, 0)),
-  lovr.math.newMat4():lookAt(vec3(), vec3( 0, 1, 0), vec3(0, 0,-1)),
-  lovr.math.newMat4():lookAt(vec3(), vec3( 0,-1, 0), vec3(0, 0, 1)),
-  lovr.math.newMat4():lookAt(vec3(), vec3( 0, 0, 1), vec3(0, 1, 0)),
-  lovr.math.newMat4():lookAt(vec3(), vec3( 0, 0,-1), vec3(0, 1, 0))
+  lovr.math.newMat4():lookAt(vec3(), vec3(0, 1, 0), vec3(0, 0, -1)),
+  lovr.math.newMat4():lookAt(vec3(), vec3(0, -1, 0), vec3(0, 0, 1)),
+  lovr.math.newMat4():lookAt(vec3(), vec3(0, 0, 1), vec3(0, 1, 0)),
+  lovr.math.newMat4():lookAt(vec3(), vec3(0, 0, -1), vec3(0, 1, 0))
 }
 
 function m.load(resolution, position)
   m.position:set(position)
   m.resolution = resolution or 1024
-  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution, 6, {type='cube', format = 'd32f',  usage = {'render', 'sample'}})
-  m.pass =  lovr.graphics.newPass({ depth = m.texture })
+  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution, 6,
+    { type = 'cube', format = 'd32f', usage = { 'render', 'sample' } })
+  m.pass = lovr.graphics.newPass({ depth = m.texture })
 end
-
 
 function m.setPass()
   -- render to depth buffer from light's perspective
@@ -144,14 +149,13 @@ function m.setPass()
     m.pass:setViewPose(i, transform)
     m.pass:setProjection(i, perspective)
   end
-  m.pass:setDepthTest('<=') -- draw only closer (numerically smaller) geometry
+  m.pass:setDepthTest('<=')   -- draw only closer (numerically smaller) geometry
   m.pass:setCullMode('front') -- shadow-mapping trick to avoid z-fighting face acne
   m.pass:setShader(depthwritter)
   m.pass:send('LightWorld', m.position)
   m.pass:send('LightFarPlane', m.draw_distance)
   return m.pass -- pass is prepared for receiving geometry, should also be submitted
 end
-
 
 function m.setShader(pass)
   pass:setShader(shadowmapper)

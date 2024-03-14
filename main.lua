@@ -2,7 +2,7 @@ require "camera"
 require "utility"
 
 local point_light = require('pointlight')
-point_light.load(1024) -- depth texture resolution & position
+point_light.load(1024*2) -- depth texture resolution & position
 lovr.graphics.setBackgroundColor(.1, .1, .1)
 
 local scene = {
@@ -16,7 +16,7 @@ function lovr.update(dt)
   updateCamera(dt)
 end
 
-function drawScene(pass)
+function DrawScene(pass)
   -- box
   addBoxes(scene, pass)
 
@@ -35,16 +35,16 @@ function lovr.draw(pass)
 
   --first draw , depth
   local depthPass = point_light.setPass()
-  drawScene(depthPass)
+  DrawScene(depthPass)
 
   --second draw, normal
   point_light.setShader(pass)
-  drawScene(pass)
+  DrawScene(pass)
 
   --assign point light settings
   pass:sphere(mat4(point_light.position):scale(0.5))
   local t = lovr.timer.getTime() * 0.2
-  t = 3.12 --remove this to go into flicker land
+  --t = 3.12 --remove this to go into flicker land
   point_light.position:set(math.cos(t) * scene.width / 2, math.sin(t) * scene.depth / 2, 0)
   -- point_light.position:set(34, 11, 0)
 
