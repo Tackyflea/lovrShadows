@@ -24,15 +24,22 @@ function updateCamera(dt)
     camera:rotate(math.rad(-60), 1, 0, 0)
     camera:translate(lovr.math.vec3(0, target.y, 0))
     camera:target(vec3(camera), vec3(target.x, 0, target.z), vec3(0, 1, 0))
+    
 end
 
 function drawCamera(pass)
     local width, height    = lovr.system.getWindowDimensions()
     local ratio            = width / height
-    local light_projection = lovr.math.mat4():perspective(math.rad(20), ratio * 1.13, 0.01)
+    local fov = math.rad(20)
+    local aspect  = ratio* 1.13
+    local near  =  0.01
+    local far  =  0
+    local light_projection = lovr.math.mat4():perspective(fov, aspect,near,far)
 
     pass:setProjection(1, light_projection)
     pass:setViewPose(1, camera)
+
+    
 end
 
 function moveCamera(key)

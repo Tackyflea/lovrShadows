@@ -44,12 +44,11 @@ end
 function lovr.draw(pass)
   local t                  = lovr.timer.getTime() * 0.004
   local tDeg               = math.deg(t)-1.78
- --  tDeg = 45
+  -- tDeg = 45
   local xPos = math.sin(tDeg)*scene.size/2
   local yPos = math.cos(tDeg)*scene.size/2
 
   drawCamera(pass)
-
     local cameraPosition = vec3(xPos,yPos,0)
     local cameraTarget = vec3(0,0,0) 
     dir_light.setOrthographic(scene,tDeg)
@@ -69,7 +68,7 @@ function lovr.draw(pass)
   --scene(pass)
   DrawScene(pass)
 
- -- createRotatedBoundingOrthographicView(tDeg,scene,pass)
+ --createRotatedBoundingOrthographicView(tDeg,scene,pass)
   return lovr.graphics.submit(gpass, pass)
 end
 

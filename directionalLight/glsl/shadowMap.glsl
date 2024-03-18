@@ -91,7 +91,7 @@ float shadowGenerate(){
 
     vec4 PositionLightSpace =  Push.LightSpaceMatrix * vec4(PositionWorld, 1.);
     vec2 lightSpaceUV = PositionLightSpace.xy / PositionLightSpace.w * 0.5 + 0.5;
-    float depth_biased = 0.0003;
+    float depth_biased = 0.03;
     float currentDepth = PositionLightSpace.z / PositionLightSpace.w + depth_biased;
     float shadowing = 0.; // collect shadow across pcf samples
     float bias = 0.003;   
@@ -99,11 +99,11 @@ float shadowGenerate(){
     bias= max(0.05 * (1.0 - dot(Normal, lightDir)), 0.005);  
   
  
-    const float Samples = 20;
+    const float Samples = 64;
 
     for (int i = 0; i < Samples; ++i) {
         int index = i;
-        lightSpaceUV += pcf_offset[index].xy * 0.0004;
+        lightSpaceUV += PoissonSamples[index].xy * 0.0001;
         float closestDepth2=  1e9;
 
         if ((lightSpaceUV.x > 0.) && (lightSpaceUV.x < 1.) && (lightSpaceUV.y > 0.) && (lightSpaceUV.y < 1.)) {

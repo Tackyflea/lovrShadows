@@ -5,6 +5,7 @@ local m = {}
 m.near = 0.01
 m.far = 153
 m.orthographic_span = 55
+local vS                = lovr.filesystem.read("/directionalLight/glsl/dirLightVert.glsl")
 local fS                = lovr.filesystem.read("/directionalLight/glsl/dirLightFrag.glsl")
  
 m.target = Vec3()
@@ -16,7 +17,7 @@ m.view_pose = lovr.math.newMat4()
 m.projection = lovr.math.newMat4():orthographic(-m.orthographic_span, m.orthographic_span, m.orthographic_span,
   -m.orthographic_span, m.near, m.far)
 
-local shadowmapper = lovr.graphics.newShader('unlit',fS)
+local shadowmapper = lovr.graphics.newShader(vS,fS)
 
 
 
