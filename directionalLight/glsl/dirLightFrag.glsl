@@ -1,19 +1,17 @@
-
 layout(set = 2, binding = 0) uniform texture2D DepthBuffer;
 layout(set = 2, binding = 1) uniform sampler shadowSampler;  
 
 Constants {
   mat4 LightSpaceMatrix;
-  vec3 LightSource;
+  vec3 LightDirection;
 };
 
  //shadow map requires the matrix from here
  #include "directionalLight/glsl/shadowMap.glsl"
 
 vec4 diffuseLighting( float shadow) {
-  vec3 lightDir = normalize(vec3(LightSource));
-
-  float NdotL = max(dot(Normal, lightDir), 0.0);
+  vec3 toLight = normalize(-LightDirection);
+  float NdotL = max(dot(Normal, toLight), 0.0);
   NdotL = clamp(NdotL,0,1);
 
   vec4 diffuse = (shadow*NdotL) * vec4(1.0, 1.0, 0.8, 1.0); 

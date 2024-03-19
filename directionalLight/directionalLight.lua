@@ -1,52 +1,19 @@
-
- 
 local m = {}
 
-m.near = 0.01
-m.far = 153
-m.orthographic_span = 55
-local vS                = lovr.filesystem.read("/directionalLight/glsl/dirLightVert.glsl")
-local fS                = lovr.filesystem.read("/directionalLight/glsl/dirLightFrag.glsl")
- 
-m.target = Vec3()
-m.view_pose = lovr.math.newMat4()
-    :lookAt(
-      vec3(22, 51, -22),
-      vec3(0, 1, 0))
+m.view = Mat4()
+m.projection = Mat4()
+m.lightMatrix = Mat4()
+m.direction = Vec3()
 
-m.projection = lovr.math.newMat4():orthographic(-m.orthographic_span, m.orthographic_span, m.orthographic_span,
-  -m.orthographic_span, m.near, m.far)
-
+local vS = "/directionalLight/glsl/dirLightVert.glsl"
+local fS = "/directionalLight/glsl/dirLightFrag.glsl"
 local shadowmapper = lovr.graphics.newShader(vS,fS)
 
-
-
-function m.load(resolution, pose)
-  if pose then
-    m.view_pose:set(pose):invert()
-  end
+function m.load(resolution)
   m.resolution = resolution or 1024
-  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution,
-    { format = 'd32f', mipmaps = false, linear = true, usage = { 'render', 'sample' } })
-  m.pass = lovr.graphics.newPass { depth = m.texture, samples = 1 }
-  m.sampler           = lovr.graphics.newSampler({
-    wrap = { 'clamp', 'clamp', 'clamp' },
-    compare = 'gequal',
-    usage = { 'render', 'sample' }
-  })
-  
-end
-
-function m.setOrthographic(scene,degree)
-  local wPadding, hPadding = 1, 1
-  local w, h               = scene.size + wPadding, scene.height + hPadding
-  --rotational angle
-  local rotatedWidth       = w * math.abs(math.cos(degree)) + h * math.abs(math.sin(degree))
-  local rotatedHeight      = w * math.abs(math.sin(degree)) + h * math.abs(math.cos(degree)) 
-  m.near = scene.size/2-rotatedHeight/2
-  m.far = scene.size/2+rotatedHeight/2
-  m.projection:set(0):orthographic(-scene.size/2-wPadding/2, scene.size/2+wPadding/2, rotatedWidth/2,
-  -rotatedWidth/2, m.near, m.far )
+  m.texture = lovr.graphics.newTexture(m.resolution, m.resolution, { format = 'd32f' })
+  m.pass = lovr.graphics.newPass({ depth = m.texture, samples = 1 })
+  m.sampler = lovr.graphics.newSampler({ wrap = 'clamp', compare = 'gequal' })
 end
 
 function m.getPass()
@@ -56,37 +23,83 @@ function m.getPass()
   m.pass:setCullMode('front')
   m.pass:setDepthTest('lequal')
   m.pass:setProjection(1, m.projection)
-  m.pass:setViewPose(1, m.view_pose, true)
+  m.pass:setViewPose(1, m.view, true)
   return m.pass
 end
 
 function m.setShader(pass)
-  pass:setCullMode('back')
   pass:setShader(shadowmapper)
-  local light_space_matrix = m.projection * m.view_pose
-  pass:send('LightSpaceMatrix', light_space_matrix)
+  pass:send('LightSpaceMatrix', m.lightMatrix)
   pass:send('shadowSampler', m.sampler)
-  pass:send('LightSource', m.target)
+  pass:send('LightDirection', m.direction)
   pass:send('DepthBuffer', m.texture)
-
 end
 
 function m.debugDraw(pass)
-  pass:setColor(1, 0.8, 0.5)
-  local pose = mat4(m.view_pose):invert()
-  pass:cone(vec3(pose:mul(0, 0, -0.3)), vec3(pose), 13)
-end
-
-function m.setPose(pose_or_origin, target)
-  if not target then
-    local pose = pose_or_origin
-    m.view_pose:set(pose):invert()
-  else
-    local origin = pose_or_origin
-    m.target:set(pose_or_origin)
-    m.view_pose:lookAt(origin, target)
+  if lovr.system.isKeyDown('`') then
+    pass:push('state')
+    pass:setShader()
+    pass:setDepthTest()
+    pass:setColor(1, 1, 1)
+    pass:fill(m.texture)
+    pass:pop('state')
   end
 end
-return m
--- end of library code; now follows a testing scene, accessed with `lovr dir_light.lua`
 
+function m.setLightMatrix(lightDirection, cameraView, cameraProjection)
+  m.direction:set(lightDirection):normalize()
+
+  -- Get the 8 points of the camera's frustum in NDC space
+  m.points = {
+    vec3(-1, -1, 0),
+    vec3( 1, -1, 0),
+    vec3(-1,  1, 0),
+    vec3( 1,  1, 0),
+
+    vec3(-1, -1, 1),
+    vec3( 1, -1, 1),
+    vec3(-1,  1, 1),
+    vec3( 1,  1, 1)
+  }
+
+  local viewProjection = cameraProjection * cameraView
+  local worldFromClip = mat4(viewProjection):invert()
+
+  -- Convert the NDC points to world space frustum vertices
+  for i, point in ipairs(m.points) do
+    point:transform(worldFromClip)
+  end
+
+  -- Get the center of the frustum
+  local frustumCenter = vec3()
+  for i, point in ipairs(m.points) do
+    frustumCenter:add(point)
+  end
+  frustumCenter:mul(1 / #m.points)
+
+  -- Make a temp lookAt matrix that can be used to rotate points into the light's coordinate space
+  local tempMatrix = mat4():lookAt(frustumCenter, frustumCenter + m.direction)
+
+  -- Convert all the points into light space
+  for i, point in ipairs(m.points) do
+    point:transform(tempMatrix)
+  end
+
+  -- Find AABB around camera corners, from light's perspective
+  local minx, miny, minz = math.huge, math.huge, math.huge
+  local maxx, maxy, maxz = -math.huge, -math.huge, -math.huge
+
+  for i = 1, #m.points do
+    local x, y, z = m.points[i]:unpack()
+    minx, miny, minz = math.min(minx, x), math.min(miny, y), math.min(minz, z)
+    maxx, maxy, maxz = math.max(maxx, x), math.max(maxy, y), math.max(maxz, z)
+  end
+
+  local lightPosition = frustumCenter
+
+  m.view:lookAt(frustumCenter, frustumCenter + m.direction)
+  m.projection:orthographic(minx, maxx, maxy, miny, -maxz, -minz)
+  m.lightMatrix:set(m.projection * m.view)
+end
+
+return m

@@ -4,6 +4,7 @@ local dir_light = require "directionalLight.directionalLight"
 local scene = {
   size = 150, height = 4
 }
+time = 0
 
 -- in main.lua this would be:  local dir_light = require('dir_light')
 dir_light.load(2048)
@@ -39,39 +40,47 @@ end
 
 function lovr.update(dt)
   updateCamera(dt)
+  if lovr.system.isKeyDown('t') then
+    time = time + dt
+  end
 end
 
 function lovr.draw(pass)
-  local t                  = lovr.timer.getTime() * 0.004
-  local tDeg               = math.deg(t)-1.78
+  local t                  = time * 0.004
+  local tDeg               = math.deg(t)-1.78+math.pi/2
   -- tDeg = 45
   local xPos = math.sin(tDeg)*scene.size/2
   local yPos = math.cos(tDeg)*scene.size/2
 
   drawCamera(pass)
-    local cameraPosition = vec3(xPos,yPos,0)
-    local cameraTarget = vec3(0,0,0) 
-    dir_light.setOrthographic(scene,tDeg)
 
-    dir_light.setPose(cameraPosition,cameraTarget)
+  -- Flip depth clear/test when using regular perspective matrix for camera
+  pass:setClear({ depth = 1 })
+  pass:setDepthTest('lequal')
 
+  local lightPosition = vec3(xPos,yPos,0)
+  local lightTarget = vec3(0,0,0)
+  local lightDirection = (lightTarget - lightPosition):normalize()
 
-  --debug mode
---pass:fill(dir_light.texture)
+  local view = pass:getViewPose(1, mat4(), true)
+  local proj = pass:getProjection(1, mat4())
+  dir_light.setLightMatrix(lightDirection, view, proj)
 
   -- the most important part:
   local gpass = dir_light.getPass()
-  --scene(gpass)
   DrawScene(gpass)
-  dir_light.debugDraw(pass)
   dir_light.setShader(pass)
-  --scene(pass)
   DrawScene(pass)
 
- --createRotatedBoundingOrthographicView(tDeg,scene,pass)
+  pass:setShader()
+  pass:setColor(1, 0.8, 0.5)
+  pass:cone(lightPosition, lightPosition - lightDirection * 10, 10)
+
+  dir_light.debugDraw(pass)
+
   return lovr.graphics.submit(gpass, pass)
 end
 
-function lovr.keypressed(key) moveCamera(key) end
-
--- this would be end of main.lua improting this lib
+function lovr.keypressed(key)
+  moveCamera(key)
+end
