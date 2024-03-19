@@ -134,7 +134,9 @@ vec2 FindBlocker(vec2 uv, float depth, float scale, float searchUV, vec2 receive
 
 		offset = Rotate(offset, rotationTrig);
 
-		float shadowMapDepth =sampleTex(vec3(uv + offset , depth));
+		//float shadowMapDepth =sampleTex(vec3(uv + offset , depth));
+        
+		float shadowMapDepth =getPixel(DepthBuffer, uv + offset).r;
 	    float biasedDepth = depth;
 		if (shadowMapDepth < biasedDepth)
 		{
@@ -204,10 +206,10 @@ float shadowGenerate(){
     float searchSize  = Softness * (depth - .02) / depth;
     vec2 blockerInfo = FindBlocker(lightSpaceUV, depth, scale, searchSize, receiverPlaneDepthBias, rotationTrig);
 
-    if (blockerInfo.y < 1)
+    if (blockerInfo.y < 0)
 	{
 		//There are no occluders so early out (this saves filtering)
-		return 0.0;
+		return 1.0;
 	}
     float penumbra = depth - blockerInfo.x; 
     penumbra = 1.0 - pow(1.0 - penumbra, SoftnessFalloff);
