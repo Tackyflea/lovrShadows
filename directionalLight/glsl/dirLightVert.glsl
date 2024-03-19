@@ -1,3 +1,4 @@
-vec4 lovrmain() {
+ 
+vec4 lovrmain() { 
   return Projection * View * Transform * VertexPosition;
 }

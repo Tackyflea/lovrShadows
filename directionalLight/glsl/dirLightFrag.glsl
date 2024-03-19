@@ -1,7 +1,6 @@
 
 layout(set = 2, binding = 0) uniform texture2D DepthBuffer;
-layout(set = 2, binding = 1) uniform sampler shadowSampler;   
-
+layout(set = 2, binding = 1) uniform sampler shadowSampler;  
 layout( push_constant ) uniform constants {
   mat4 LightSpaceMatrix;
   vec3 LightSource;

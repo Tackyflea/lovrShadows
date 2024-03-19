@@ -6,7 +6,7 @@ local scene = {
 }
 
 -- in main.lua this would be:  local dir_light = require('dir_light')
-dir_light.load(2048)
+dir_light.load(4096)
 
 monkey = lovr.graphics.newModel('monkey.obj')
 
