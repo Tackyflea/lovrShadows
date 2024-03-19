@@ -187,9 +187,9 @@ float PCF_Filter(vec2 uv, float depth, float scale, float filterRadiusUV, vec2 r
 float shadowGenerate(){
 
     //PCSS ported from https://github.com/TheMasonX/UnityPCSS/blob/master/Assets/PCSS/Shaders/PCSS.shader#L482
-    vec4 PositionLightSpace =  Push.LightSpaceMatrix * vec4(PositionWorld, 1.);
+    vec4 PositionLightSpace =  LightSpaceMatrix * vec4(PositionWorld, 1.);
     vec2 lightSpaceUV = PositionLightSpace.xy / PositionLightSpace.w * 0.5 + 0.5;    
-    vec3 lightDir = normalize(vec3(Push.LightSource)); 
+    vec3 lightDir = normalize(vec3(LightSource)); 
     
 
     float depth = PositionLightSpace.z;    
