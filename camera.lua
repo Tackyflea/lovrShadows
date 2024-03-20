@@ -4,7 +4,8 @@ local camera = lovr.math.newMat4()
 local defaultY = 22
 local target = { x = 0, y = defaultY, z = 0 }
 local scene = { width = 10, size = 10 }
-local far = 800
+local far = 555
+local near = 222
 function loadCamera(sceneImport)
     scene = sceneImport
 end
@@ -32,8 +33,7 @@ function drawCamera(pass)
     local width, height    = lovr.system.getWindowDimensions()
     local ratio            = width / height
     local fov = math.rad(20)
-    local aspect  = ratio
-    local near  =  0.1
+    local aspect  = ratio 
     local light_projection = lovr.math.mat4():perspective(fov, aspect,near,far)
 
     pass:setProjection(1, light_projection)
@@ -46,27 +46,33 @@ function moveCamera(key)
     local distanceFromEdge = 4
     if key == "a" or key == "left" then
         newPos = { x = -size / 2+distanceFromEdge, y = defaultY, z = -size / 2 +distanceFromEdge}
+        near =11
         far = 35
     end
     if key == "d" or key == "right" then
         newPos = { x = size / 2 -distanceFromEdge, y = defaultY, z = size / 2 -distanceFromEdge }
+        near = 11
         far = 35
     end
     if key == "w" or key == "up" then
         newPos = { x = size / 2 -distanceFromEdge, y = defaultY, z = -size / 2  +distanceFromEdge}
+        near = 11
         far = 35
     end
     if key == "s" or key == "down" then
         newPos = { x = -size / 2 +distanceFromEdge, y = defaultY, z = size / 2 -distanceFromEdge }
+        near = 11
         far = 35
     end
     if key == "space" then
         newPos = { x = 0, y = defaultY, z = 0 }
+        near = 11
         far = 35
     end
     if key == "q" then
         newPos = { x = 0, y = size * 3, z = 0 }
-        far = 800
+        near = 222
+        far = 555
     end
     if newPos then
         local speed = 44

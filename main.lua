@@ -2,9 +2,9 @@ require "camera"
 require "utility"
 local dir_light = require "directionalLight.directionalLight"
 local scene = {
-  size = 150, height = 4
+  size = 150, height = 2
 }
-time = 0
+time = 1
 
 -- in main.lua this would be:  local dir_light = require('dir_light')
 dir_light.load(2048)
@@ -40,14 +40,14 @@ end
 
 function lovr.update(dt)
   updateCamera(dt)
-  if lovr.system.isKeyDown('t') then
-    time = time + dt
+ if lovr.system.isKeyDown('t') then
+    time = time + dt*2
   end
 end
 
 function lovr.draw(pass)
   local t                  = time * 0.004
-  local tDeg               = math.deg(t)-1.78+math.pi/2
+  local tDeg               = math.deg(t)-3+math.pi/2
   -- tDeg = 45
   local xPos = math.sin(tDeg)*scene.size/2
   local yPos = math.cos(tDeg)*scene.size/2

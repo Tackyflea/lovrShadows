@@ -5,7 +5,7 @@ function addBox(pass,scene,model, x, z)
     local boxHeight = scene.height*0.5
     pass:setColor(1,1,1)
     if model then
-      pass:monkey(vec3(x, boxHeight/2-0.5, z), vec3(boxSize, boxSize, boxSize))
+      pass:monkey(vec3(x, 0.5, z), vec3(boxSize, boxSize, boxSize))
     
     else
     pass:box(vec3(x, boxHeight/2, z), vec3(boxSize, boxHeight, boxSize))
