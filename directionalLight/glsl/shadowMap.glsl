@@ -1,144 +1,158 @@
-float PCF_FILTER_SAMPLES = 64;
-float BLOCKER_SAMPLES = 32;
 
-vec3 pcf_offset[20] = vec3[](
-vec3( 1,  1,  1), vec3( 1, -1,  1), vec3(-1, -1,  1), vec3(-1,  1,  1), 
-   vec3( 1,  1, -1), vec3( 1, -1, -1), vec3(-1, -1, -1), vec3(-1,  1, -1),
-   vec3( 1,  1,  0), vec3( 1, -1,  0), vec3(-1, -1,  0), vec3(-1,  1,  0),
-   vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
-   vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
-);
-float sampleTex(vec3 location){
-    return texture( sampler2DShadow(DepthBuffer, shadowSampler), location );
-}
+//implemented from https://github.com/proskur1n/vwa-code/blob/master/source/shaders/normalPass.vert
+float uLightNearPlane=33;
+float uLightFarPlane=144;
+float uLightWidthUV=0.032; // lightWidth / frustumWidth
 
-float linstep(float min, float max, float v) {   
-    return clamp((v - min) / (max - min), 0, 1); 
-} 
-float ReduceLightBleeding(float p_max, float Amount) {    
-// Remove the [0, Amount] tail and linearly rescale (Amount, 1].    
-    return linstep(Amount, 1, p_max); 
-} 
-mediump vec2 poissonDisk[64] = vec2[]( // don't use 'const' b/c of OSX GL compiler bug
-    vec2(0.511749, 0.547686), vec2(0.58929, 0.257224), vec2(0.165018, 0.57663), vec2(0.407692, 0.742285),
-    vec2(0.707012, 0.646523), vec2(0.31463, 0.466825), vec2(0.801257, 0.485186), vec2(0.418136, 0.146517),
-    vec2(0.579889, 0.0368284), vec2(0.79801, 0.140114), vec2(-0.0413185, 0.371455), vec2(-0.0529108, 0.627352),
-    vec2(0.0821375, 0.882071), vec2(0.17308, 0.301207), vec2(-0.120452, 0.867216), vec2(0.371096, 0.916454),
-    vec2(-0.178381, 0.146101), vec2(-0.276489, 0.550525), vec2(0.12542, 0.126643), vec2(-0.296654, 0.286879),
-    vec2(0.261744, -0.00604975), vec2(-0.213417, 0.715776), vec2(0.425684, -0.153211), vec2(-0.480054, 0.321357),
-    vec2(-0.0717878, -0.0250567), vec2(-0.328775, -0.169666), vec2(-0.394923, 0.130802), vec2(-0.553681, -0.176777),
-    vec2(-0.722615, 0.120616), vec2(-0.693065, 0.309017), vec2(0.603193, 0.791471), vec2(-0.0754941, -0.297988),
-    vec2(0.109303, -0.156472), vec2(0.260605, -0.280111), vec2(0.129731, -0.487954), vec2(-0.537315, 0.520494),
-    vec2(-0.42758, 0.800607), vec2(0.77309, -0.0728102), vec2(0.908777, 0.328356), vec2(0.985341, 0.0759158),
-    vec2(0.947536, -0.11837), vec2(-0.103315, -0.610747), vec2(0.337171, -0.584), vec2(0.210919, -0.720055),
-    vec2(0.41894, -0.36769), vec2(-0.254228, -0.49368), vec2(-0.428562, -0.404037), vec2(-0.831732, -0.189615),
-    vec2(-0.922642, 0.0888026), vec2(-0.865914, 0.427795), vec2(0.706117, -0.311662), vec2(0.545465, -0.520942),
-    vec2(-0.695738, 0.664492), vec2(0.389421, -0.899007), vec2(0.48842, -0.708054), vec2(0.760298, -0.62735),
-    vec2(-0.390788, -0.707388), vec2(-0.591046, -0.686721), vec2(-0.769903, -0.413775), vec2(-0.604457, -0.502571),
-    vec2(-0.557234, 0.00451362), vec2(0.147572, -0.924353), vec2(-0.0662488, -0.892081), vec2(0.863832, -0.407206)
+int uShadowQuality = 3; // Possible values: 0, 1, 2, 3
+float uFilterRadius=0.01;
+bool uEnablePCSS = true;
+
+
+vec2 POISSON8[] = vec2[8](
+	vec2(-0.2602728,0.3234085), vec2(-0.3268174,0.0442592), vec2(0.1996002,0.1386711),
+	vec2(0.2615348,-0.1569698), vec2(-0.2869459,-0.3421305), vec2(0.1351001,-0.4352284),
+	vec2(-0.0635913,-0.1520724), vec2(0.1454225,0.4629610)
 );
 
-float interleavedGradientNoise(vec2 w) {
-    const vec3 m = vec3(0.06711056, 0.00583715, 52.9829189);
-    return fract(m.z * fract(dot(w, m.xy)));
-}
-mat2 getRandomRotationMatrix( vec2 fragCoord) {
-    // rotate the poisson disk randomly
-    float randomAngle = interleavedGradientNoise(fragCoord) * (2.0 * PI);
-    vec2 randomBase = vec2(cos(randomAngle), sin(randomAngle));
-    mat2 R = mat2(randomBase.x, randomBase.y, -randomBase.y, randomBase.x);
-    return R;
-}
-vec2 Rotate(vec2 pos, vec2 rotationTrig)
-{
-	return vec2(pos.x * rotationTrig.x - pos.y * rotationTrig.y, pos.y * rotationTrig.x + pos.x * rotationTrig.y);
-}
-float SampleShadowmapDepth(vec2 uv)
-{
-	return getPixel(DepthBuffer, uv ).r; 
-}
-vec2 FindBlocker(vec2 uv, float depth, float scale, float searchUV, vec2 rotationTrig)
-{
-	float avgBlockerDepth = 0.0;
-	float numBlockers = 0.0;
-	float blockerSum = 0.0;
+vec2 POISSON16[] = vec2[16](
+	vec2(0.3040781,-0.1861200), vec2(0.1485699,-0.0405212), vec2(0.4016555,0.1252352),
+	vec2(-0.1526961,-0.1404687), vec2(0.3480717,0.3260515), vec2(0.0584860,-0.3266001),
+	vec2(0.0891062,0.2332856), vec2(-0.3487481,-0.0159209), vec2(-0.1847383,0.1410431),
+	vec2(0.4678784,-0.0888323), vec2(0.1134236,0.4119219), vec2(0.2856628,-0.3658066),
+	vec2(-0.1765543,0.3937907), vec2(-0.0238326,0.0518298), vec2(-0.2949835,-0.3029899),
+	vec2(-0.4593541,0.1720255)
+);
 
-	for (int i = 0; i < BLOCKER_SAMPLES; i++)
-	{
-		vec2 offset = poissonDisk[i] * searchUV * scale;
+vec2 POISSON32[] = vec2[32](
+	vec2(0.2981409,0.0490049), vec2(0.1629048,-0.1408463), vec2(0.1691782,-0.3703386),
+	vec2(0.3708196,0.2632940), vec2(-0.0602839,-0.2213077), vec2(0.3062163,-0.1364151),
+	vec2(0.0094440,-0.0299901), vec2(-0.0753952,-0.3944479), vec2(-0.2073224,-0.3717136),
+	vec2(0.1254510,0.0428502), vec2(0.2816537,-0.3045711), vec2(-0.2343018,-0.2459390),
+	vec2(0.0625516,-0.2719784), vec2(-0.3949863,-0.2474681), vec2(0.0501389,-0.4359268),
+	vec2(-0.1602987,-0.0242505), vec2(0.3998221,0.1279425), vec2(0.1698757,0.2820195),
+	vec2(0.4191946,-0.0148812), vec2(0.4103152,-0.2532885), vec2(-0.0010199,0.3389769),
+	vec2(-0.2646317,-0.1102498), vec2(0.2064117,0.4451604), vec2(-0.0788299,0.1059370),
+	vec2(-0.3209068,0.1344933), vec2(0.0868388,0.1710649), vec2(-0.3878541,-0.0204674),
+	vec2(-0.4418672,0.1825800), vec2(-0.3623412,0.3157248), vec2(-0.1956292,0.2076620),
+	vec2(0.0205688,0.4664732), vec2(-0.1860556,0.4323920)
+);
 
-		offset = Rotate(offset, rotationTrig);
-		float shadowMapDepth =sampleTex(vec3(uv + offset , depth));
+vec2 POISSON64[] = vec2[64](
+	vec2(-0.0189662,-0.0510488), vec2(-0.1820639,-0.0553801), vec2(0.0910325,0.0252679),
+	vec2(0.1096571,-0.0798338), vec2(-0.1469904,0.1132023), vec2(0.2343081,-0.1905298),
+	vec2(-0.0029982,0.0958551), vec2(0.3510874,-0.1930093), vec2(0.0468733,-0.1524058),
+	vec2(-0.1218595,-0.2167346), vec2(0.2739988,-0.0158153), vec2(0.1341032,-0.2588954),
+	vec2(0.2062096,-0.0821571), vec2(-0.1026306,-0.0041678), vec2(-0.3240024,-0.0798507),
+	vec2(0.3697911,0.0458827), vec2(-0.2538350,-0.2965067), vec2(-0.2396912,0.0628588),
+	vec2(-0.3017254,-0.1893546), vec2(0.2113072,-0.3186852), vec2(0.0559174,0.2359820),
+	vec2(-0.3721051,0.0980429), vec2(-0.1430048,0.2194094), vec2(-0.0514073,0.3617615),
+	vec2(-0.2960384,0.1891084), vec2(-0.0552694,0.1748697), vec2(-0.0987295,-0.1174246),
+	vec2(0.3565632,0.1850419), vec2(0.1723162,-0.4579452), vec2(0.3403926,-0.3167597),
+	vec2(-0.1414267,0.4724176), vec2(-0.4680430,-0.1488462), vec2(0.2291788,0.1936403),
+	vec2(-0.1400955,-0.4132020), vec2(0.1192180,-0.3781818), vec2(-0.3150060,0.3645030),
+	vec2(0.1893810,0.0889743), vec2(0.0909581,0.1423441), vec2(-0.0500480,-0.4849751),
+	vec2(-0.2104492,0.2853596), vec2(0.3527338,0.3100588), vec2(0.0354831,0.4304752),
+	vec2(0.4190884,-0.0489801), vec2(0.1890273,0.3002760), vec2(0.4564034,0.0862838),
+	vec2(0.1851432,0.4389251), vec2(-0.0038145,-0.2962559), vec2(0.0485585,0.3323395),
+	vec2(0.2843748,0.0984157), vec2(0.4504704,-0.1657754), vec2(-0.3932974,-0.2612363),
+	vec2(-0.2073296,0.3838763), vec2(-0.4316504,0.2052262), vec2(-0.2043341,-0.1549807),
+	vec2(-0.3898448,0.3030459), vec2(-0.4078800,-0.0078618), vec2(-0.2387565,-0.4155289),
+	vec2(-0.0335876,0.2676137), vec2(0.0709581,-0.4616181), vec2(-0.3274855,-0.3756900),
+	vec2(-0.0448154,0.4841810), vec2(-0.4669865,0.1102869), vec2(-0.0956072,-0.3239126),
+	vec2(0.2771143,0.3817498)
+);
 
-        float biasedDepth = depth;
-		if (shadowMapDepth > biasedDepth)
-		{
-			blockerSum += shadowMapDepth;
-			numBlockers += 1.0;
+float PCF(vec3 uvz, float filterRadius) {
+	float sum = 0.0;
+	int sampleCount = int(pow(2, 3 + uShadowQuality));
+	for (int i = 0; i < sampleCount; ++i) {
+		vec2 offset;
+		switch (uShadowQuality) {
+		case 0: offset = POISSON8[i];
+		case 1: offset = POISSON16[i];
+		case 2: offset = POISSON32[i];
+		default: offset = POISSON64[i];
 		}
-	
+		// Since we only render back-facing triangles into the shadow
+		// buffer, we do not need to bias the depth here. The current
+		// technique has its own problems, such as "Peter-Panning" on
+		// very thin or intersecting geometry, but it works perfectly
+		// for this small demo scene.
+        
+		sum +=         texture( sampler2DShadow(DepthBuffer, shadowSampler), uvz + vec3(offset * filterRadius, 0) );
+
 	}
-
-	avgBlockerDepth = blockerSum / numBlockers;
-
-	return vec2(avgBlockerDepth, numBlockers);
+	return sum / sampleCount;
 }
 
+// Perspective projection stores depth values as 1/z. This function linearizes
+// the depth value returned by texture(...) and transforms it to the interval
+// [near_plane, far_plane].
+// See: https://stackoverflow.com/questions/51108596/linearize-depth
+float depthToZ(float depth) {
+	float n = uLightNearPlane;
+	float f = uLightFarPlane;
+	return n * f / (depth * (n - f) + f);
+}
 
-float PCF_Filter(vec2 uv, float depth, float scale, float filterRadiusUV, float penumbra, vec2 rotationTrig)
-{
-	float sum = 0.0f;  
-	for (int i = 0; i < PCF_FILTER_SAMPLES; i++)
-	{
-		vec2 offset = poissonDisk[i] * filterRadiusUV * scale;
- 
-		offset = Rotate(offset, rotationTrig); 
+vec2 findAverageOccluder(vec3 uvz) {
+	// Tip: If your shadows don't look right or sharp enough, try increasing
+	// the near plane of the light camera. It makes a huge difference.
+      vec4 PositionLightSpace =  LightSpaceMatrix * vec4(PositionWorld, 1.);
+      
+	float zReceiver = PositionLightSpace.w;
+	float searchWidth = uLightWidthUV * (zReceiver - uLightNearPlane) / zReceiver;
 
-		float biasedDepth = depth;
- 
+	float sum = 0.0;
+	float count = 0.0;
+    vec2 lightSpaceUV = PositionLightSpace.xy / PositionLightSpace.w * 0.5 + 0.5;
 
-		float value = sampleTex(vec3(uv.xy + offset, biasedDepth));
-
-		sum += value;
+	for (int i = 0; i < 16; ++i) {
+		vec2 s = lightSpaceUV.xy + POISSON16[i] * searchWidth;
+		float depth = texture( sampler2DShadow(DepthBuffer, shadowSampler), vec3(s,0) );
+		if (depth < uvz.z) {
+			sum += depth;
+			++count;
+		}
 	}
 
-	//sum /= samples;
-	sum /= PCF_FILTER_SAMPLES;
-
-	return sum;
+	// I have a feeling that this is actually slightly wrong, since the
+	// average of the inverse values is not equal to the inverse of the
+	// average value. But Nvidia has implemented it that way, and after
+	// a few tests the two approaches give very similar results anyway.
+	return vec2(depthToZ(sum / count), count);
 }
-float shadowGenerate(){
 
-    //PCSS ported from https://github.com/TheMasonX/UnityPCSS/blob/master/Assets/PCSS/Shaders/PCSS.shader#L482
-    vec4 PositionLightSpace =  LightSpaceMatrix * vec4(PositionWorld, 1.);
-    vec2 lightSpaceUV = PositionLightSpace.xy / PositionLightSpace.w * 0.5 + 0.5;    
-    
-
-    float depth = PositionLightSpace.z;    
-    float random =  fract(sin(dot(PositionWorld.xy, vec2(12.9898,78.233))) * 43758.5453123);
-
-	float rotationAngle = random * 3.1415926;
-	vec2 rotationTrig = vec2(cos(rotationAngle), sin(rotationAngle));
-
-    float Softness= 1.2;
-    float SoftnessFalloff = 0.49;
-    float scale = 0.01;
-
-    float searchSize  = Softness * (depth - .02) / depth;
-    vec2 blockerInfo = FindBlocker(lightSpaceUV, depth, scale, searchSize, rotationTrig);
-
-  
-	if (blockerInfo.y < 1)
-	{
-		//There are no occluders so early out (this saves filtering)
+float PCSS(vec3 uvz) {
+	vec2 occluderInfo = findAverageOccluder(uvz);
+	if (occluderInfo.y == 0.0) {
+		// No occluders were found, fragment is fully lit.
 		return 1.0;
 	}
 
-    float penumbra = depth - blockerInfo.x; 
-    penumbra = 1.0 - pow(1.0 - penumbra, SoftnessFalloff);
-	float filterRadiusUV = penumbra * Softness;
-    float shadow = PCF_Filter(lightSpaceUV, depth, scale, filterRadiusUV, penumbra, rotationTrig);
-    shadow = -0.2 + pow(1.8 * shadow, 0.4); 
-    shadow = clamp(shadow,0,1);
-    return 1-shadow;
+	float occluder = occluderInfo.x;
+	float receiver = inData.vShadowCoordinates.w;
+	float penumbraWidth = uLightWidthUV * (receiver - occluder) / occluder;
+	float filterRadius = uLightNearPlane * penumbraWidth / receiver;
+
+	return PCF(uvz, filterRadius);
+}
+
+float shadowGenerateB(){
+	vec4 PositionLightSpace =  inData.LightSpaceMatrix * vec4(PositionWorld, 1.);
+	vec2 uvzUV = PositionLightSpace.xy / PositionLightSpace.w * 0.5 + 0.5;    
+    
+    vec3 uvz = vec3(uvzUV.xy, PositionLightSpace.z);
+	if (uvz.z < 0.0 || 1.0 < uvz.z) {
+		// Discard this point, since it lies outside the light frustum.
+		// uvz.x and uvz.y dimensions are handled with GL_TEXTURE_BORDER_COLOR
+		// and GL_CLAMP_TO_BORDER.
+		return 1.0;
+	}
+	if (uEnablePCSS) {
+		return 1-PCSS(uvz);
+	} else {
+		return 1-PCF(uvz, uFilterRadius);
+	}
 }

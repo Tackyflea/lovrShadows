@@ -32,7 +32,7 @@ function m.setShader(pass)
   pass:send('LightSpaceMatrix', m.lightMatrix)
   pass:send('shadowSampler', m.sampler)
   pass:send('LightDirection', m.direction)
-  pass:send('DepthBuffer', m.texture)
+  pass:send('DepthBuffer', m.texture) 
 end
 
 function m.debugDraw(pass)
